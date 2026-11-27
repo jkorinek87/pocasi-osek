@@ -322,6 +322,14 @@ h2 { font-size: 1.05rem; }
   .flake { animation: none; opacity: .5; }
   .bulb { animation: none; box-shadow: 0 0 8px 2px var(--c); }
 }
-@media (max-width: 420px) {
-  :root[data-xmas] .top h1 { font-size: 1.12rem; white-space: nowrap; }
+/* Nadpis na praporu musí zůstat na jednom řádku vedle tří tlačítek. */
+:root[data-xmas] .top h1 {
+  white-space: nowrap;
+  /* Plynulá velikost: místo pro nadpis je šířka okna minus okraje a tlačítka. */
+  font-size: clamp(1rem, calc((100vw - 190px) / 10.5), 1.65rem);
+}
+@media (max-width: 380px) {
+  :root[data-xmas] .top h1::before { content: none; }
+  :root[data-xmas] .top-actions { gap: 6px; }
+  :root[data-xmas] .top .btn-icon { width: 36px; height: 36px; font-size: 1.1rem; }
 }
