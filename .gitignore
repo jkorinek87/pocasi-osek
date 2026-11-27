@@ -1,0 +1,9 @@
+# Osobní nastavení Claude Code (oprávnění apod.) – nesdílet
+.claude/settings.local.json
+
+# Systémové a editorové soubory
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+*.log

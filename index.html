@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Počasí Osek u Rokycan</title>
+  <meta name="description" content="Předpověď počasí pro Osek u Rokycan – aktuální stav, 48 hodin a 7 dní (Open-Meteo, ICON-D2, ICON-EU, ECMWF).">
+  <meta name="theme-color" content="#f4f6f9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#11151c" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛅</text></svg>">
+  <script>
+    // Nastaví téma ještě před vykreslením, aby stránka neproblikla.
+    try {
+      var t = localStorage.getItem('pocasi-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="api.js"></script>
+  <script defer src="chart.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-inner">
+      <div>
+        <h1>Osek u Rokycan</h1>
+        <p class="sub">49,78° s. š., 13,59° v. d. · <span id="updated">Načítám…</span></p>
+      </div>
+      <div class="top-actions">
+        <button id="theme-toggle" class="btn-icon" type="button" aria-label="Přepnout na tmavý vzhled" title="Přepnout na tmavý vzhled">🌙</button>
+        <button id="refresh" class="btn-icon" type="button" aria-label="Obnovit data" title="Obnovit data">↻</button>
+      </div>
+    </div>
+    <div class="wrap controls">
+      <label class="ctl">
+        <span>Model</span>
+        <select id="model-select">
+          <option value="auto">Automaticky</option>
+          <option value="icon_d2">ICON-D2 · 2,5 dne</option>
+          <option value="icon_eu">ICON-EU · 5 dní</option>
+          <option value="ecmwf_ifs">ECMWF IFS · 7 dní</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="error" class="error" role="alert" hidden>
+      <p id="error-text">Data se nepodařilo načíst.</p>
+      <button id="retry" type="button" class="btn">Zkusit znovu</button>
+    </div>
+
+    <section class="card" aria-labelledby="h-now">
+      <div class="card-head">
+        <h2 id="h-now">Aktuálně</h2>
+        <span class="muted small" id="now-meta"></span>
+      </div>
+      <div id="now" class="now is-loading">
+        <div class="now-main">
+          <span class="now-icon" id="now-icon" aria-hidden="true">·</span>
+          <div>
+            <div class="now-temp" id="now-temp">–</div>
+            <div class="now-desc" id="now-desc">&nbsp;</div>
+          </div>
+        </div>
+        <dl class="tiles" id="now-tiles"></dl>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-hours">
+      <div class="card-head">
+        <h2 id="h-hours">Příštích 48 hodin</h2>
+        <span class="muted small" id="hours-meta"></span>
+      </div>
+      <div class="chart-scroll" id="chart-scroll" tabindex="0" aria-label="Hodinový graf, posuňte do stran">
+        <div id="chart" class="chart is-loading"></div>
+      </div>
+      <p class="chart-detail" id="chart-detail" aria-live="polite">Klepněte na hodinu v grafu pro podrobnosti.</p>
+      <ul class="legend">
+        <li><span class="sw sw-temp"></span>Teplota</li>
+        <li><span class="sw sw-feels"></span>Pocitová</li>
+        <li><span class="sw sw-precip"></span>Srážky (mm/h)</li>
+        <li><span class="sw sw-pp"></span>Pravděpodobnost srážek</li>
+        <li><span class="sw sw-night"></span>Noc</li>
+      </ul>
+    </section>
+
+    <section class="card" aria-labelledby="h-days">
+      <div class="card-head">
+        <h2 id="h-days">7 dní</h2>
+        <span class="muted small" id="days-meta">dny 1–2 ICON-D2, dny 3–7 ECMWF</span>
+      </div>
+      <ol class="days is-loading" id="days"></ol>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <p>Data: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0) ·
+      modely DWD ICON-D2 / ICON-EU a ECMWF IFS · časy v Europe/Prague</p>
+    <p class="muted">Štítky modelů: <b>D2</b> ICON-D2 (2 km), <b>EU</b> ICON-EU (7 km), <b>EC</b> ECMWF IFS (9 km).</p>
+  </footer>
+</body>
+</html>
