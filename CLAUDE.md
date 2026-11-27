@@ -46,5 +46,10 @@ Statická webová aplikace s předpovědí počasí pro jednu obec.
 - V Claude desktop aplikaci je náhled připravený v `.claude/launch.json` (konfigurace `pocasi`).
 - `serve.ps1` drž **jen v ASCII** – Windows PowerShell 5.1 čte soubory bez BOM jako ANSI.
 
+## Nasazení
+- Veřejný repozitář https://github.com/jkorinek87/pocasi-osek, GitHub Pages z kořene větve `main`: https://jkorinek87.github.io/pocasi-osek/
+- Každý push do `main` stránku přenasadí. `.nojekyll` vypíná Jekyll – soubory se servírují tak, jak jsou.
+- Všechny cesty v `index.html` musí zůstat relativní (stránka běží v podadresáři `/pocasi-osek/`).
+
 ## Ověření změn
 Spustit server, otevřít stránku a zkontrolovat: obě volání Open-Meteo vrací 200, vykreslí se aktuální stav, graf (48 sloupců) i 7 dní, konzole bez chyb, a na šířce 375 px žádné vodorovné posouvání.

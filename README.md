@@ -3,6 +3,8 @@
 Statická webová aplikace s předpovědí počasí pro Osek u Rokycan (49,78° s. š., 13,59° v. d.).
 Jen HTML, CSS a čistý JavaScript, bez frameworku a bez buildu.
 
+**Živá verze:** https://jkorinek87.github.io/pocasi-osek/ (GitHub Pages z větve `main`, obnoví se po každém pushi).
+
 ## Spuštění
 
 **Nejjednodušší:** otevři `index.html` dvojklikem v prohlížeči. Aplikace nepoužívá ES moduly
