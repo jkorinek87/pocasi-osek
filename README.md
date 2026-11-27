@@ -1,6 +1,16 @@
 # Počasí – Osek u Rokycan
 
-Statická webová aplikace s předpovědí počasí pro Osek u Rokycan (49,78° s. š., 13,59° v. d.).
+Statická webová aplikace s předpovědí počasí. Výchozí místo je Osek u Rokycan (49,78° s. š., 13,59° v. d.),
+ale jde zobrazit počasí kdekoli na světě.
+
+Vše je v menu **☰** vlevo nahoře:
+
+- **Zadat místo** – hledání obce nebo města s našeptáváním.
+- **📍 Použít moji polohu** – zjistí polohu z prohlížeče (funguje na HTTPS a localhost).
+- **Automaticky podle polohy (GPS)** – při každém otevření se samo přepne na aktuální polohu.
+  Když je vypnuté, otevře se naposledy zobrazené místo.
+- **Uložená místa** – „☆ Uložit aktuální“ přidá místo do seznamu, klepnutím se na něj přepne, 🗑 ho smaže.
+
 Jen HTML, CSS a čistý JavaScript, bez frameworku a bez buildu.
 
 **Živá verze:** https://jkorinek87.github.io/pocasi-osek/ (GitHub Pages z větve `main`, obnoví se po každém pushi).
@@ -45,4 +55,4 @@ Tlačítkem 🌙 / ☀️ v hlavičce se přepíná světlý a tmavý vzhled (v�
 Tlačítkem 🎄 se zapíná vánoční vzhled (barvy, girlanda, padající sníh) – funguje ve světlém i tmavém režimu.
 Zvolený model i vzhled si prohlížeč pamatuje (localStorage).
 
-Časy jsou v Europe/Prague, jednotky °C, km/h, mm.
+Časy jsou v místním čase zvoleného místa, jednotky °C, km/h, mm.

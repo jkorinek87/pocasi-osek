@@ -3,9 +3,14 @@
   'use strict';
 
   var BASE = 'https://api.open-meteo.com/v1/forecast';
-  var LAT = 49.78;
-  var LON = 13.59;
-  var TZ = 'Europe/Prague';
+  var GEO_SEARCH = 'https://geocoding-api.open-meteo.com/v1/search';
+  // Zpětné geokódování smí dostat jen souřadnice z Geolocation API prohlížeče (podmínka BigDataCloud).
+  var GEO_REVERSE = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
+  // Výchozí místo, dokud uživatel nevybere jiné.
+  var DEFAULT_LOCATION = {
+    name: 'Osek u Rokycan', detail: 'Plzeňský kraj, Česko',
+    lat: 49.78, lon: 13.59
+  };
   var TIMEOUT_MS = 12000;
 
   var MODELS = {
@@ -41,18 +46,19 @@
     return { hourly: AUTO_HOURLY, dayShort: AUTO_DAY_SHORT, dayLong: AUTO_DAY_LONG, strict: false };
   }
 
-  function buildUrl(params) {
+  function buildUrl(params, base) {
     var q = Object.keys(params).map(function (k) {
       return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
     }).join('&');
-    return BASE + '?' + q;
+    return (base || BASE) + '?' + q;
   }
 
-  function common() {
+  // timezone=auto: časy v odpovědi jsou v místním čase zvoleného místa a pásmo je v `timezone`.
+  function common(loc) {
     return {
-      latitude: LAT,
-      longitude: LON,
-      timezone: TZ,
+      latitude: loc.lat,
+      longitude: loc.lon,
+      timezone: 'auto',
       temperature_unit: 'celsius',
       wind_speed_unit: 'kmh',
       precipitation_unit: 'mm'
@@ -81,16 +87,24 @@
   function isNum(v) { return typeof v === 'number' && !isNaN(v); }
 
   /* --- A) Aktuální stav: v auto režimu ICON-D2, záložně ICON-EU, nakonec ECMWF --- */
-  function fetchCurrent(mode) {
-    var order = orders(mode).hourly;
-    var lastErr = null;
+  // `available` (volitelné) = modely, které podle předpovědi pro toto místo mají data.
+  // Díky tomu se mimo oblast ICON neposílají dotazy, které by skončily chybou 400.
+  function fetchCurrent(mode, loc, available) {
+    var order = orders(mode).hourly.filter(function (m) {
+      return !available || available.indexOf(m) >= 0;
+    });
+    var lastErr = order.length ? null : new Error('No data');
 
     function attempt(i) {
       if (i >= order.length) {
-        return Promise.reject(lastErr || new Error('Aktuální data nejsou k dispozici'));
+        // Mimo oblast modelu (např. ICON-D2 mimo střední Evropu) API vrací „No data is available…“.
+        var msg = lastErr && /No data/i.test(lastErr.message)
+          ? 'zvolený model pro toto místo nemá data'
+          : (lastErr ? lastErr.message : 'aktuální data nejsou k dispozici');
+        return Promise.reject(new Error(msg));
       }
       var model = order[i];
-      var p = common();
+      var p = common(loc);
       p.current = CURRENT_VARS.join(',');
       p.models = model;
       return getJson(buildUrl(p)).then(function (data) {
@@ -99,7 +113,7 @@
           return isNum(c[k]);
         });
         if (!complete) throw new Error('Model ' + MODELS[model].name + ' nevrátil aktuální data');
-        return { model: model, data: c, interval: c.interval };
+        return { model: model, data: c, interval: c.interval, tz: data.timezone };
       }).catch(function (err) {
         lastErr = err;
         return attempt(i + 1);
@@ -109,15 +123,41 @@
   }
 
   /* --- B) Hodinová + denní předpověď, všechny modely v jednom dotazu --- */
-  function fetchForecast() {
-    var p = common();
+  function fetchForecast(loc) {
+    var p = common(loc);
     p.hourly = HOURLY_VARS.join(',');
     p.daily = DAILY_VARS.join(',');
     p.models = ALL_MODELS.join(',');
     p.forecast_days = 7;
     // Vrací surová data; sloučení podle zvoleného modelu dělá merge(),
     // takže přepnutí modelu nepotřebuje nový dotaz.
-    return getJson(buildUrl(p));
+    return getJson(buildUrl(p)).then(normalizeModels);
+  }
+
+  // Když má pro místo data jen jeden model, API vrátí proměnné BEZ přípony modelu
+  // (např. v Japonsku jen `temperature_2m`). Jediný globální model je ECMWF, takže
+  // takové pole patří jemu – doplníme příponu, aby slučování fungovalo stejně všude.
+  function normalizeModels(raw) {
+    [[raw.hourly, HOURLY_VARS], [raw.daily, DAILY_VARS]].forEach(function (pair) {
+      var block = pair[0];
+      if (!block) return;
+      pair[1].forEach(function (v) {
+        if (!(v in block)) return;
+        var suffixed = ALL_MODELS.some(function (m) { return (v + '_' + m) in block; });
+        if (!suffixed) block[v + '_ecmwf_ifs'] = block[v];
+      });
+    });
+    return raw;
+  }
+
+  // Modely, které mají pro místo aspoň nějakou hodinovou teplotu.
+  function availableModels(raw) {
+    var h = raw && raw.hourly;
+    if (!h) return null;
+    return ALL_MODELS.filter(function (m) {
+      var arr = h['temperature_2m_' + m];
+      return arr && arr.some(isNum);
+    });
   }
 
   function merge(raw, mode) {
@@ -200,11 +240,54 @@
     });
   }
 
+  /* --- Místa: hledání podle názvu (Open-Meteo Geocoding, data GeoNames) --- */
+  function joinDetail(parts, name) {
+    var seen = {};
+    if (name) seen[name] = true; // neopakovat název místa (např. „Tokio, Tokio, Japonsko“)
+    return parts.filter(function (p) {
+      if (!p || seen[p]) return false;
+      seen[p] = true;
+      return true;
+    }).join(', ');
+  }
+
+  function searchPlaces(query) {
+    var q = (query || '').trim();
+    if (q.length < 2) return Promise.resolve([]);
+    var url = buildUrl({ name: q, count: 8, language: 'cs', format: 'json' }, GEO_SEARCH);
+    return getJson(url).then(function (data) {
+      return (data.results || []).map(function (r) {
+        return {
+          name: r.name,
+          detail: joinDetail([r.admin2, r.admin1, r.country], r.name),
+          lat: r.latitude,
+          lon: r.longitude
+        };
+      });
+    });
+  }
+
+  // Název místa pro polohu z GPS. Při chybě vrátí obecný název, aby šlo pokračovat.
+  function reverseGeocode(lat, lon) {
+    var url = buildUrl({ latitude: lat, longitude: lon, localityLanguage: 'cs' }, GEO_REVERSE);
+    return getJson(url).then(function (r) {
+      return {
+        name: r.city || r.locality || 'Moje poloha',
+        detail: joinDetail([r.principalSubdivision, r.countryName], r.city || r.locality)
+      };
+    }).catch(function () {
+      return { name: 'Moje poloha', detail: '' };
+    });
+  }
+
   window.WeatherAPI = {
     MODELS: MODELS,
-    TZ: TZ,
+    DEFAULT_LOCATION: DEFAULT_LOCATION,
     fetchCurrent: fetchCurrent,
     fetchForecast: fetchForecast,
-    merge: merge
+    merge: merge,
+    availableModels: availableModels,
+    searchPlaces: searchPlaces,
+    reverseGeocode: reverseGeocode
   };
 })();

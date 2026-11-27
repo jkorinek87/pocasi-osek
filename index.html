@@ -25,9 +25,11 @@
   <div id="snow" class="snow" aria-hidden="true"></div>
   <header class="top">
     <div class="wrap top-inner">
-      <div>
-        <h1>Osek u Rokycan</h1>
-        <p class="sub">49,78° s. š., 13,59° v. d. · <span id="updated">Načítám…</span></p>
+      <button id="menu-btn" class="btn-icon menu-btn" type="button" aria-label="Místa a poloha" title="Místa a poloha"
+              aria-haspopup="dialog" aria-expanded="false" aria-controls="drawer">☰</button>
+      <div class="title-box">
+        <h1 id="loc-name">Osek u Rokycan</h1>
+        <p class="sub"><span id="loc-detail">Plzeňský kraj, Česko</span> · <span id="updated">Načítám…</span></p>
       </div>
       <div class="top-actions">
         <button id="xmas-toggle" class="btn-icon" type="button" aria-pressed="false" aria-label="Vánoční vzhled" title="Zapnout vánoční vzhled">🎄</button>
@@ -48,6 +50,47 @@
     </div>
     <div id="garland" class="garland" aria-hidden="true"></div>
   </header>
+
+  <!-- Výsuvné menu ☰: hledání místa, poloha podle GPS, uložená místa -->
+  <div id="drawer-backdrop" class="drawer-backdrop"></div>
+  <aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+    <div class="drawer-head">
+      <h2 id="drawer-title">Místa</h2>
+      <button id="drawer-close" class="btn-icon" type="button" aria-label="Zavřít menu" title="Zavřít">✕</button>
+    </div>
+
+    <section class="drawer-section">
+      <label class="drawer-label" for="loc-input">Zadat místo</label>
+      <div class="loc-search">
+        <input id="loc-input" type="search" placeholder="Obec nebo město…" autocomplete="off"
+               enterkeyhint="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="loc-results">
+        <ul id="loc-results" class="loc-results" role="listbox" aria-label="Nalezená místa" hidden></ul>
+      </div>
+    </section>
+
+    <section class="drawer-section">
+      <h3 class="drawer-label">Poloha</h3>
+      <button id="geo-btn" class="drawer-btn" type="button">📍 Použít moji polohu</button>
+      <label class="switch-row">
+        <input id="auto-gps" type="checkbox" role="switch">
+        <span class="switch" aria-hidden="true"></span>
+        <span>Automaticky podle polohy (GPS) při každém otevření</span>
+      </label>
+      <p id="loc-status" class="loc-status" role="status" hidden></p>
+    </section>
+
+    <section class="drawer-section">
+      <div class="drawer-row">
+        <h3 class="drawer-label">Uložená místa</h3>
+        <button id="fav-toggle" class="btn-chip" type="button" aria-pressed="false">☆ Uložit aktuální</button>
+      </div>
+      <ul id="favs" class="fav-list" aria-label="Uložená místa"></ul>
+      <p id="favs-empty" class="muted small">Zatím žádná uložená místa. Vyber místo a klepni na „☆ Uložit aktuální“.</p>
+    </section>
+
+    <p class="drawer-foot muted small">Hledání: Open-Meteo Geocoding (GeoNames) · název podle polohy: BigDataCloud.
+      Souřadnice se odesílají jen při použití polohy.</p>
+  </aside>
 
   <main class="wrap">
     <div id="error" class="error" role="alert" hidden>
@@ -101,7 +144,9 @@
 
   <footer class="wrap foot">
     <p>Data: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0) ·
-      modely DWD ICON-D2 / ICON-EU a ECMWF IFS · časy v Europe/Prague</p>
+      modely DWD ICON-D2 / ICON-EU a ECMWF IFS · časy v místním čase zvoleného místa</p>
+    <p class="muted">Hledání míst: Open-Meteo Geocoding, data <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> ·
+      název podle polohy: <a href="https://www.bigdatacloud.com/" target="_blank" rel="noopener">BigDataCloud</a> (souřadnice se posílají jen při použití polohy).</p>
     <p class="muted">Štítky modelů: <b>D2</b> ICON-D2 (2 km), <b>EU</b> ICON-EU (7 km), <b>EC</b> ECMWF IFS (9 km).</p>
   </footer>
 </body>

@@ -1,10 +1,18 @@
 # Počasí – Osek u Rokycan
 
-Statická webová aplikace s předpovědí počasí pro jednu obec.
+Statická webová aplikace s předpovědí počasí. Výchozí místo je Osek u Rokycan, jde ale zvolit jakékoli místo na světě.
 
 ## Lokalita
-- Obec **Osek u Rokycan**, souřadnice **49.78, 13.59** (konstanty `LAT`/`LON` v `api.js`).
-- Časové pásmo **Europe/Prague** – v API (`timezone=Europe/Prague`) i ve formátování (`Intl` s `timeZone`).
+- Výchozí místo **Osek u Rokycan**, souřadnice **49.78, 13.59** (`DEFAULT_LOCATION` v `api.js`).
+- Místo = `{ name, detail, lat, lon, gps }` (stav `place` v `app.js`). Po otevření se ukáže naposledy zobrazené místo (`pocasi-loc`); se zapnutou volbou „Automaticky podle polohy“ (`pocasi-autogps`) se pak samo přepne na polohu z GPS (`locate(true)`).
+- Ovládání míst je ve výsuvném menu ☰ vlevo nahoře (`#drawer`, modální dialog: Escape, klik mimo a ✕ ho zavřou, Tab zůstává uvnitř, fokus se vrací na ☰). Výběr místa menu zavře.
+- Načítání: nejdřív předpověď (všechny modely), z ní `availableModels()` zjistí, které modely mají pro místo data; aktuální stav se ptá jen jich (jinak by mimo oblast ICON vznikaly chyby 400 v konzoli).
+- Hledání: Open-Meteo Geocoding (`https://geocoding-api.open-meteo.com/v1/search`, `language=cs`, data GeoNames), našeptávání po 300 ms od 2 znaků.
+- Poloha: Geolocation API prohlížeče (funguje jen na HTTPS nebo localhost), souřadnice zaokrouhlené na 3 desetinná místa. Název místa z BigDataCloud `reverse-geocode-client` – podle jejich podmínek se smí volat **jen ze souřadnic z Geolocation API**, ne z hledání ani z uložených míst.
+- Uložená místa: `pocasi-favs` (nejvýš 12), v menu tlačítko „☆ Uložit aktuální“ a seznam s 🗑 pro smazání. Názvy míst z API se do stránky vkládají **jen přes `textContent`**, nikdy přes `innerHTML`.
+- Časové pásmo: v API `timezone=auto`, pásmo místa z odpovědi (`timezone`) se ukládá do `tz` v `app.js` a používá ve formátování (`Intl` s `timeZone`). Čas „aktualizováno“ je podle hodin uživatele.
+- Mimo oblast ICON (mimo střední Evropu / Evropu) vrací ICON `null`, u aktuálního stavu chybu „No data is available“ – režim Automaticky pak použije ECMWF.
+- Pozor: když má pro místo data **jen jeden** model (např. Japonsko → jen ECMWF), API vrátí `hourly`/`daily` proměnné **bez přípony** modelu. `normalizeModels()` v `api.js` je přejmenuje na `_ecmwf_ifs` (jediný globální model), jinak by graf i 7 dní zůstaly prázdné.
 
 ## Technologie
 - Jen **HTML, CSS a čistý JavaScript**. Žádný framework, knihovna, npm ani build.
@@ -28,13 +36,13 @@ Statická webová aplikace s předpovědí počasí pro jednu obec.
 ## Jazyk a jednotky
 - Veškeré texty v UI **česky** (`lang="cs"`, formátování `cs-CZ` – desetinná čárka).
 - Jednotky **°C, km/h, mm** (`temperature_unit=celsius`, `wind_speed_unit=kmh`, `precipitation_unit=mm`); tlak v hPa, vlhkost a oblačnost v %.
-- Časy z API jsou místní pražský čas bez offsetu (`"2026-11-27T14:00"`). Nepředávej je do `new Date()` (vyložil by je v pásmu prohlížeče) – pracuj s nimi jako s řetězci, „teď“ získáš přes `pragueNow()` v `app.js`.
+- Časy z API jsou místní čas zvoleného místa bez offsetu (`"2026-11-27T14:00"`). Nepředávej je do `new Date()` (vyložil by je v pásmu prohlížeče) – pracuj s nimi jako s řetězci, „teď“ v místě získáš přes `localNow()` v `app.js`.
 
 ## UI
 - Mobile-first, musí fungovat od šířky 320 px bez vodorovného posouvání stránky (posouvá se jen graf).
 - Světlý/tmavý vzhled: výchozí podle systému, přepínač v hlavičce nastavuje `data-theme` na `<html>`. Barvy jen přes CSS proměnné v `:root`.
 - Vánoční vzhled: samostatný přepínač 🎄, nastavuje atribut `data-xmas` na `<html>` a kombinuje se se světlým i tmavým (vlastní CSS proměnné pro obě varianty). Hlavička je prapor (červený / v tmavém zelený), pod ní girlanda žárovek (sestavuje `buildGarland()` v `app.js`, přepočítá se při změně šířky), karty mají sněhové čepice, v patičce je přání. Sníh (`#snow`) je pod kartami (`z-index`), aby nepřekrýval údaje; při `prefers-reduced-motion` vločky jen staticky leží a žárovky neblikají.
-- Volby se ukládají do `localStorage` (`pocasi-theme`, `pocasi-model`, `pocasi-xmas`), vždy v `try/catch` – aplikace musí fungovat i bez něj. Téma i vánoční vzhled nastavuje už inline skript v `<head>`, aby stránka neproblikla.
+- Volby se ukládají do `localStorage` (`pocasi-theme`, `pocasi-model`, `pocasi-xmas`, `pocasi-loc`, `pocasi-favs`, `pocasi-autogps`), vždy v `try/catch` – aplikace musí fungovat i bez něj. Téma i vánoční vzhled nastavuje už inline skript v `<head>`, aby stránka neproblikla.
 - Data se obnovují automaticky každých 15 minut a po návratu na stránku, pokud jsou starší.
 
 ## Spuštění lokálně

@@ -3,13 +3,15 @@
   'use strict';
 
   var API = window.WeatherAPI;
-  var TZ = API.TZ;
   var REFRESH_MS = 15 * 60 * 1000;
   var HOURS = 48;
+  var MAX_FAVS = 12;
 
   var $ = function (id) { return document.getElementById(id); };
   var lastLoad = 0;
-  var loading = false;
+  var loadGen = 0;           // pořadí načítání; starší odpověď (např. po přepnutí místa) se zahodí
+  // Časové pásmo zobrazeného místa – přepíše ho odpověď API (timezone=auto).
+  var tz = 'Europe/Prague';
 
   /* ---------- Uložené volby (localStorage jen jako pohodlí, stránka funguje i bez něj) ---------- */
   function readPref(key, allowed, fallback) {
@@ -21,6 +23,28 @@
   function writePref(key, value) {
     try { localStorage.setItem(key, value); } catch (e) {}
   }
+  function readJson(key) {
+    try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; }
+  }
+  function writeJson(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+  }
+
+  // Místo = { name, detail, lat, lon, gps? }. Neplatná uložená data se ignorují.
+  function validPlace(p) {
+    return p && typeof p.name === 'string' && p.name &&
+      typeof p.lat === 'number' && Math.abs(p.lat) <= 90 &&
+      typeof p.lon === 'number' && Math.abs(p.lon) <= 180;
+  }
+  function cleanPlace(p) {
+    return { name: p.name, detail: p.detail || '', lat: p.lat, lon: p.lon, gps: !!p.gps };
+  }
+  function placeKey(p) { return p.lat.toFixed(3) + ',' + p.lon.toFixed(3); }
+
+  // Po otevření se ukáže naposledy zobrazené místo (zpočátku Osek u Rokycan).
+  var savedPlace = readJson('pocasi-loc');
+  var place = validPlace(savedPlace) ? cleanPlace(savedPlace) : cleanPlace(API.DEFAULT_LOCATION);
+  var favs = (readJson('pocasi-favs') || []).filter(validPlace).map(cleanPlace).slice(0, MAX_FAVS);
 
   var MODES = ['auto', 'icon_d2', 'icon_eu', 'ecmwf_ifs'];
   var mode = readPref('pocasi-model', MODES, 'auto');
@@ -70,22 +94,30 @@
     return isDay === 0 && w[2] ? w[2] : w[1];
   }
 
-  /* ---------- Formátování (cs-CZ, Europe/Prague) ---------- */
+  /* ---------- Formátování (cs-CZ, časy v pásmu zobrazeného místa) ---------- */
   function num(v, d) {
     if (v == null) return '–';
     return v.toLocaleString('cs-CZ', { maximumFractionDigits: d || 0, minimumFractionDigits: d || 0 });
   }
   function temp(v, d) { return v == null ? '–' : num(v, d) + ' °C'; }
 
-  // Aktuální čas v Praze jako "YYYY-MM-DDTHH:MM" (stejný tvar jako časy z API).
-  function pragueNow() {
+  // Aktuální čas zobrazeného místa jako "YYYY-MM-DDTHH:MM" (stejný tvar jako časy z API).
+  function localNow() {
     var parts = {};
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    var opts = {
+      year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
-    }).formatToParts(new Date()).forEach(function (p) { parts[p.type] = p.value; });
+    };
+    var fmt;
+    try { fmt = new Intl.DateTimeFormat('en-CA', Object.assign({ timeZone: tz }, opts)); }
+    catch (e) { fmt = new Intl.DateTimeFormat('en-CA', opts); } // neznámé pásmo → čas prohlížeče
+    fmt.formatToParts(new Date()).forEach(function (p) { parts[p.type] = p.value; });
     return parts.year + '-' + parts.month + '-' + parts.day + 'T' + parts.hour + ':' + parts.minute;
   }
+  var browserTz = (function () {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return ''; }
+  })();
+  var fmtClock = new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' });
   function addDays(dateStr, n) {
     var p = dateStr.split('-');
     var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2] + n));
@@ -101,7 +133,7 @@
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
   function relDay(dateStr) {
-    var today = pragueNow().slice(0, 10);
+    var today = localNow().slice(0, 10);
     if (dateStr === today) return 'Dnes';
     if (dateStr === addDays(today, 1)) return 'Zítra';
     return null;
@@ -146,7 +178,7 @@
 
   /* ---------- 48 hodin ---------- */
   function renderHours(hourly) {
-    var nowHour = pragueNow().slice(0, 13) + ':00';
+    var nowHour = localNow().slice(0, 13) + ':00';
     var start = 0;
     while (start < hourly.length && hourly[start].time < nowHour) start++;
     var pts = hourly.slice(start, start + HOURS);
@@ -188,8 +220,13 @@
     });
     var span = Math.max(1, gMax - gMin);
 
+    // Které modely se skutečně použily (mimo Evropu ICON nemá data, zůstane jen ECMWF).
+    var usedModels = [];
+    daily.forEach(function (d) {
+      if (d.model && usedModels.indexOf(d.model) < 0) usedModels.push(d.model);
+    });
     $('days-meta').textContent = mode === 'auto'
-      ? 'dny 1–2 ICON-D2, dny 3–7 ECMWF'
+      ? (usedModels.length ? usedModels.map(function (m) { return API.MODELS[m].name; }).join(' + ') : '')
       : 'jen model ' + API.MODELS[mode].name;
 
     $('days').innerHTML = daily.map(function (d) {
@@ -245,9 +282,15 @@
   function loadCurrent() {
     var req = ++currentReq;
     $('now').classList.add('is-loading');
-    return settle(API.fetchCurrent(mode)).then(function (r) {
+    return settle(API.fetchCurrent(mode, place, API.availableModels(rawForecast))).then(function (r) {
       if (req !== currentReq) return null; // mezitím přišel novější dotaz
       if (r.ok) { renderCurrent(r.v); return null; }
+      // Nenechávat na kartě staré hodnoty jiného modelu nebo místa.
+      $('now-icon').textContent = '·';
+      $('now-temp').textContent = '–';
+      $('now-desc').textContent = 'Aktuální stav není k dispozici';
+      $('now-meta').textContent = '';
+      $('now-tiles').textContent = '';
       $('now').classList.remove('is-loading');
       return 'aktuální stav (' + r.e.message + ')';
     });
@@ -262,35 +305,298 @@
   }
 
   function load() {
-    if (loading) return;
-    loading = true;
+    var gen = ++loadGen;
     $('refresh').classList.add('spin');
     $('error').hidden = true;
 
-    Promise.all([
-      loadCurrent(),
-      settle(API.fetchForecast())
-    ]).then(function (res) {
-      var errs = [];
-      if (res[0]) errs.push(res[0]);
-      if (res[1].ok) {
-        rawForecast = res[1].v;
+    // Nejdřív předpověď (všechny modely naráz): z ní je vidět, které modely pro místo
+    // mají data, a aktuální stav se pak ptá jen jich – mimo oblast ICON tak nevznikají chyby 400.
+    var errs = [];
+    var forecastOk = false;
+    settle(API.fetchForecast(place)).then(function (f) {
+      if (gen !== loadGen) return null; // mezitím se načítá jiné místo
+      if (f.ok) {
+        forecastOk = true;
+        rawForecast = f.v;
+        if (rawForecast.timezone) tz = rawForecast.timezone;
         try { renderForecast(); } catch (e) { errs.push('předpověď (' + e.message + ')'); }
       } else {
-        errs.push('předpověď (' + res[1].e.message + ')');
+        errs.push('předpověď (' + f.e.message + ')');
       }
+      return loadCurrent();
+    }).then(function (currentErr) {
+      if (gen !== loadGen) return;
+      if (currentErr) errs.push(currentErr);
       if (errs.length) showError('Nepodařilo se načíst: ' + errs.join(', ') + '.');
-      if (!res[0] || res[1].ok) {
+      if (!currentErr || forecastOk) {
         lastLoad = Date.now();
-        $('updated').textContent = 'aktualizováno ' + pragueNow().slice(11, 16);
+        // Čas aktualizace podle hodin uživatele; u místa v jiném pásmu se pásmo připíše.
+        $('updated').textContent = 'aktualizováno ' + fmtClock.format(new Date()) +
+          (tz && browserTz && tz !== browserTz ? ' · místní čas ' + tz.replace(/_/g, ' ') : '');
       } else {
         $('updated').textContent = 'data nejsou k dispozici';
       }
     }).finally(function () {
-      loading = false;
-      $('refresh').classList.remove('spin');
+      if (gen === loadGen) $('refresh').classList.remove('spin');
     });
   }
+
+  /* ---------- Místo: zobrazení, hledání, poloha, oblíbená ---------- */
+  function fmtCoords(p) {
+    return num(Math.abs(p.lat), 2) + '° ' + (p.lat >= 0 ? 's. š.' : 'j. š.') + ', ' +
+      num(Math.abs(p.lon), 2) + '° ' + (p.lon >= 0 ? 'v. d.' : 'z. d.');
+  }
+  function isFav(p) {
+    var k = placeKey(p);
+    return favs.some(function (f) { return placeKey(f) === k; });
+  }
+  function setStatus(text) {
+    $('loc-status').textContent = text || '';
+    $('loc-status').hidden = !text;
+  }
+
+  // Názvy míst přicházejí z API → vkládají se jen přes textContent, nikdy přes innerHTML.
+  function renderPlace() {
+    $('loc-name').textContent = place.name;
+    // Krátký název (např. „Osek u Rokycan“) drží vánoční nadpis na jednom řádku, delší se zalomí.
+    $('loc-name').classList.toggle('long-name', place.name.length > 15);
+    $('loc-detail').textContent = (place.gps ? '📍 ' : '') + (place.detail || fmtCoords(place));
+    $('loc-detail').title = fmtCoords(place);
+    document.title = 'Počasí ' + place.name;
+    var fav = isFav(place);
+    $('fav-toggle').textContent = fav ? '★ Uloženo' : '☆ Uložit aktuální';
+    $('fav-toggle').setAttribute('aria-pressed', fav ? 'true' : 'false');
+    $('fav-toggle').title = fav ? 'Odebrat „' + place.name + '“ z uložených' : 'Uložit „' + place.name + '“';
+    renderFavs();
+  }
+
+  function renderFavs() {
+    var list = $('favs');
+    list.textContent = '';
+    $('favs-empty').hidden = favs.length > 0;
+    var current = placeKey(place);
+    favs.forEach(function (f, i) {
+      var li = document.createElement('li');
+      li.className = 'fav-row' + (placeKey(f) === current ? ' current' : '');
+      var go = document.createElement('button');
+      go.type = 'button';
+      go.className = 'fav-go';
+      var nameEl = document.createElement('span');
+      nameEl.textContent = f.name;
+      go.appendChild(nameEl);
+      if (f.detail) {
+        var small = document.createElement('small');
+        small.textContent = f.detail;
+        go.appendChild(small);
+      }
+      if (placeKey(f) === current) go.setAttribute('aria-current', 'true');
+      go.addEventListener('click', function () { setPlace(f); });
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'fav-del';
+      del.textContent = '🗑';
+      del.title = 'Smazat';
+      del.setAttribute('aria-label', 'Smazat uložené místo ' + f.name);
+      del.addEventListener('click', function () {
+        favs.splice(i, 1);
+        writeJson('pocasi-favs', favs);
+        renderPlace();
+        // Fokus na další řádek (nebo na tlačítko Uložit), ať se při ovládání klávesnicí neztratí.
+        var dels = $('favs').querySelectorAll('.fav-del');
+        (dels[Math.min(i, dels.length - 1)] || $('fav-toggle')).focus();
+      });
+      li.appendChild(go);
+      li.appendChild(del);
+      list.appendChild(li);
+    });
+  }
+
+  function setPlace(p) {
+    place = cleanPlace(p);
+    writeJson('pocasi-loc', place);
+    setStatus('');
+    rawForecast = null;
+    ['now', 'chart', 'days'].forEach(function (id) { $(id).classList.add('is-loading'); });
+    renderPlace();
+    closeDrawer();
+    load();
+  }
+
+  /* ---------- Menu ☰ (výsuvný panel) ---------- */
+  var drawerOpen = false;
+  function openDrawer() {
+    drawerOpen = true;
+    $('drawer').classList.add('open');
+    $('drawer-backdrop').classList.add('open');
+    $('menu-btn').setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+    // Fokus až po zviditelnění panelu (visibility se mění okamžitě, transform animuje).
+    setTimeout(function () { $('loc-input').focus(); }, 50);
+  }
+  function closeDrawer() {
+    if (!drawerOpen) return;
+    drawerOpen = false;
+    $('drawer').classList.remove('open');
+    $('drawer-backdrop').classList.remove('open');
+    $('menu-btn').setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+    $('loc-input').value = '';
+    closeResults();
+    $('menu-btn').focus();
+  }
+  $('menu-btn').addEventListener('click', function () { if (drawerOpen) closeDrawer(); else openDrawer(); });
+  $('drawer-close').addEventListener('click', closeDrawer);
+  $('drawer-backdrop').addEventListener('click', closeDrawer);
+  $('drawer').addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { e.preventDefault(); closeDrawer(); return; }
+    if (e.key !== 'Tab') return;
+    // Tab zůstává uvnitř panelu (modální dialog).
+    var items = Array.prototype.filter.call(
+      $('drawer').querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])'),
+      function (el) { return !el.disabled && el.offsetParent !== null; }
+    );
+    if (!items.length) return;
+    var first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+
+  $('fav-toggle').addEventListener('click', function () {
+    var k = placeKey(place);
+    if (isFav(place)) {
+      favs = favs.filter(function (f) { return placeKey(f) !== k; });
+    } else {
+      if (favs.length >= MAX_FAVS) { setStatus('Uložit jde nejvýš ' + MAX_FAVS + ' míst. Nejdřív nějaké odeber.'); return; }
+      favs.push(cleanPlace({ name: place.name, detail: place.detail, lat: place.lat, lon: place.lon }));
+    }
+    writeJson('pocasi-favs', favs);
+    renderPlace();
+  });
+
+  // Poloha z prohlížeče (Geolocation API) → název místa → předpověď.
+  // auto=true: volá se sama při otevření stránky (zapnutá volba „Automaticky podle polohy“).
+  function locate(auto) {
+    var btn = $('geo-btn');
+    if (!navigator.geolocation) { setStatus('Tento prohlížeč neumí zjistit polohu.'); return; }
+    btn.disabled = true;
+    setStatus('Zjišťuji polohu…');
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      // Zaokrouhlení na ~100 m stačí pro předpověď i název obce.
+      var lat = Math.round(pos.coords.latitude * 1000) / 1000;
+      var lon = Math.round(pos.coords.longitude * 1000) / 1000;
+      // Při automatickém zjištění na stejném místě nic znovu nenačítat.
+      if (auto && place.gps && placeKey(place) === placeKey({ lat: lat, lon: lon })) {
+        btn.disabled = false;
+        setStatus('');
+        return;
+      }
+      API.reverseGeocode(lat, lon).then(function (n) {
+        btn.disabled = false;
+        setPlace({ name: n.name, detail: n.detail, lat: lat, lon: lon, gps: true });
+      });
+    }, function (err) {
+      btn.disabled = false;
+      var msg = {
+        1: 'Přístup k poloze je zakázaný. Povol ho pro tuto stránku v nastavení prohlížeče.',
+        2: 'Polohu se nepodařilo zjistit.',
+        3: 'Zjišťování polohy trvalo příliš dlouho. Zkus to znovu.'
+      }[err.code] || 'Polohu se nepodařilo zjistit.';
+      setStatus(auto ? msg + ' Zobrazuji naposledy vybrané místo.' : msg);
+    }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 });
+  }
+  $('geo-btn').addEventListener('click', function () { locate(false); });
+
+  // Volba „Automaticky podle polohy (GPS) při každém otevření“.
+  var autoGps = readPref('pocasi-autogps', ['on', 'off'], 'off') === 'on';
+  $('auto-gps').checked = autoGps;
+  $('auto-gps').addEventListener('change', function (e) {
+    autoGps = e.target.checked;
+    writePref('pocasi-autogps', autoGps ? 'on' : 'off');
+    if (autoGps) locate(false); // hned po zapnutí ukázat aktuální polohu
+    else setStatus('');
+  });
+
+  // Hledání místa podle názvu s našeptáváním.
+  var searchTimer = null;
+  var searchSeq = 0;
+  var results = [];
+  var activeIdx = -1;
+
+  function closeResults() {
+    $('loc-results').hidden = true;
+    $('loc-input').setAttribute('aria-expanded', 'false');
+    $('loc-input').removeAttribute('aria-activedescendant');
+    activeIdx = -1;
+  }
+  function highlight(i) {
+    var items = $('loc-results').querySelectorAll('[role="option"]');
+    items.forEach(function (el, j) { el.setAttribute('aria-selected', j === i ? 'true' : 'false'); });
+    activeIdx = i;
+    if (items[i]) {
+      $('loc-input').setAttribute('aria-activedescendant', items[i].id);
+      items[i].scrollIntoView({ block: 'nearest' });
+    }
+  }
+  function choose(i) {
+    var r = results[i];
+    if (!r) return;
+    $('loc-input').value = '';
+    closeResults();
+    setPlace(r); // zavře i panel a vrátí fokus na ☰
+  }
+  function showResults(list, query) {
+    var ul = $('loc-results');
+    ul.textContent = '';
+    results = list;
+    if (!list.length) {
+      var empty = document.createElement('li');
+      empty.className = 'empty';
+      empty.textContent = 'Nic nenalezeno pro „' + query + '“.';
+      ul.appendChild(empty);
+    }
+    list.forEach(function (r, i) {
+      var li = document.createElement('li');
+      li.id = 'loc-opt-' + i;
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', 'false');
+      li.textContent = r.name;
+      if (r.detail) {
+        var small = document.createElement('small');
+        small.textContent = r.detail;
+        li.appendChild(small);
+      }
+      // mousedown místo click: vybere dřív, než pole ztratí fokus a seznam se zavře
+      li.addEventListener('mousedown', function (e) { e.preventDefault(); choose(i); });
+      ul.appendChild(li);
+    });
+    ul.hidden = false;
+    $('loc-input').setAttribute('aria-expanded', 'true');
+    activeIdx = -1;
+  }
+
+  $('loc-input').addEventListener('input', function (e) {
+    var q = e.target.value.trim();
+    clearTimeout(searchTimer);
+    if (q.length < 2) { searchSeq++; closeResults(); return; }
+    searchTimer = setTimeout(function () {
+      var seq = ++searchSeq;
+      API.searchPlaces(q).then(function (list) {
+        if (seq === searchSeq) showResults(list, q);
+      }).catch(function () {
+        if (seq === searchSeq) setStatus('Hledání míst je teď nedostupné.');
+      });
+    }, 300);
+  });
+  $('loc-input').addEventListener('keydown', function (e) {
+    var open = !$('loc-results').hidden && results.length;
+    if (e.key === 'ArrowDown' && open) { e.preventDefault(); highlight(Math.min(activeIdx + 1, results.length - 1)); }
+    else if (e.key === 'ArrowUp' && open) { e.preventDefault(); highlight(Math.max(activeIdx - 1, 0)); }
+    else if (e.key === 'Enter' && open) { e.preventDefault(); choose(activeIdx >= 0 ? activeIdx : 0); }
+    else if (e.key === 'Escape' && open) { e.stopPropagation(); closeResults(); } // jinak Escape zavře celý panel
+  });
+  $('loc-input').addEventListener('blur', closeResults);
+
+  renderPlace();
 
   /* ---------- Přepínače ---------- */
   var THEME_COLORS = { light: '#f4f6f9', dark: '#11151c' };
@@ -415,5 +721,7 @@
     if (!document.hidden && Date.now() - lastLoad > REFRESH_MS) load();
   });
 
+  // Hned ukázat naposledy vybrané místo; se zapnutou automatickou polohou pak přepnout na GPS.
   load();
+  if (autoGps) locate(true);
 })();
