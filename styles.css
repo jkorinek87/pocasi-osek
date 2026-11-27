@@ -189,3 +189,139 @@ h2 { font-size: 1.05rem; }
   .day { grid-template-columns: 4.6rem 2rem 1fr auto; gap: 2px 8px; }
   .now-temp { font-size: 2.4rem; }
 }
+
+/* ---------- Vánoční vzhled (data-xmas na <html>, kombinuje se se světlým i tmavým) ---------- */
+:root[data-xmas] {
+  --bg: #f7f1e8; --card: #fffdf9; --line: #eadccb; --muted: #6f5f52;
+  --accent: #b3261e; --temp: #c62828; --feels: #2e7d4f;
+  --night: rgba(30, 80, 50, 0.07); --grid: #f0e5d6;
+  --gold: #c9a227; --xmas-red: #e53935; --xmas-green: #2e9d4f; --xmas-blue: #1e88e5;
+  --banner: linear-gradient(160deg, #b3261e 0%, #8a1c1c 55%, #6b1414 100%);
+  --wire: #1f4d2c;
+  --snowcap: #ffffff; --snowcap-shade: #d5e1ec;
+  --flake: #9fc3e3;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-xmas]:not([data-theme="light"]) {
+    --bg: #0c1a13; --card: #13251b; --text: #eef3ee; --muted: #9fb7a7; --line: #22402f;
+    --accent: #ff7b72; --temp: #ff6b6b; --feels: #8ce99a; --pp: #6f9fc8;
+    --night: rgba(160, 220, 180, 0.06); --grid: #1b3426;
+    --gold: #f2c94c; --xmas-red: #ff5252; --xmas-green: #5cd67a; --xmas-blue: #64b5f6;
+    --banner: linear-gradient(160deg, #17603a 0%, #0f4229 55%, #0a2e1c 100%);
+    --wire: #0a2416;
+    --snowcap: #e6eef6; --snowcap-shade: #a9bccb;
+    --flake: #ffffff;
+  }
+}
+:root[data-xmas][data-theme="dark"] {
+  --bg: #0c1a13; --card: #13251b; --text: #eef3ee; --muted: #9fb7a7; --line: #22402f;
+  --accent: #ff7b72; --temp: #ff6b6b; --feels: #8ce99a; --pp: #6f9fc8;
+  --night: rgba(160, 220, 180, 0.06); --grid: #1b3426;
+  --gold: #f2c94c; --xmas-red: #ff5252; --xmas-green: #5cd67a; --xmas-blue: #64b5f6;
+  --banner: linear-gradient(160deg, #17603a 0%, #0f4229 55%, #0a2e1c 100%);
+  --wire: #0a2416;
+  --snowcap: #e6eef6; --snowcap-shade: #a9bccb;
+  --flake: #ffffff;
+}
+
+/* Hlavička jako slavnostní prapor s jemným „sněžením“ ve vzoru */
+.top { position: relative; }
+:root[data-xmas] .top {
+  color: #fff;
+  padding: 20px 0 40px;
+  margin-bottom: 8px;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, .22) 1.5px, transparent 2.5px) 0 0 / 46px 46px,
+    radial-gradient(circle at 70% 75%, rgba(255, 255, 255, .14) 1px, transparent 2px) 0 0 / 31px 31px,
+    var(--banner);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+}
+:root[data-xmas] .top h1 {
+  font-family: Georgia, "Palatino Linotype", "Times New Roman", serif;
+  font-style: italic; font-weight: 700; font-size: 1.65rem; letter-spacing: .01em;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, .3);
+}
+:root[data-xmas] .top h1::before { content: "❄ "; font-style: normal; color: rgba(255, 255, 255, .85); }
+:root[data-xmas] .top .sub,
+:root[data-xmas] .top .ctl { color: rgba(255, 255, 255, .85); }
+:root[data-xmas] .top .btn-icon {
+  background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .32); color: #fff;
+}
+:root[data-xmas] .top .btn-icon:hover { background: rgba(255, 255, 255, .22); border-color: rgba(255, 255, 255, .7); }
+:root[data-xmas] .top .ctl select {
+  background: rgba(255, 255, 255, .95); color: #2b1d16; border-color: transparent;
+}
+:root[data-xmas] .top .ctl select option { color: #2b1d16; background: #fff; }
+#xmas-toggle[aria-pressed="true"] {
+  background: rgba(255, 255, 255, .26); border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(242, 201, 76, .35), 0 0 14px rgba(242, 201, 76, .45);
+}
+
+/* Girlanda: prohnutý drát s žárovkami (sestavuje app.js) */
+.garland { display: none; }
+:root[data-xmas] .garland {
+  display: block; position: absolute; left: 0; right: 0; bottom: -18px; height: 40px;
+  pointer-events: none; z-index: 5;
+  overflow-x: clip; /* drát i krajní žárovky nesmí rozšířit stránku */
+}
+.garland svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.garland .wire { fill: none; stroke: var(--wire); stroke-width: 1.8; }
+.bulb {
+  position: absolute; width: 10px; height: 15px; margin-left: -5px;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .85) 0 1.5px, transparent 3px), var(--c);
+  border-radius: 50% 50% 50% 50% / 42% 42% 58% 58%;
+  transform: rotate(var(--r, 0deg)); transform-origin: 50% -3px;
+  animation: glow 1.6s ease-in-out infinite alternate; animation-delay: var(--d, 0s);
+}
+.bulb::before {
+  content: ""; position: absolute; top: -4px; left: 50%; width: 6px; height: 5px;
+  transform: translateX(-50%); background: #7d806f; border-radius: 1.5px;
+}
+@keyframes glow {
+  from { opacity: .55; box-shadow: 0 0 2px 0 var(--c); }
+  to   { opacity: 1;   box-shadow: 0 0 12px 4px var(--c); }
+}
+
+/* Karty se sněhovou čepicí */
+:root[data-xmas] main .card { position: relative; margin-top: 26px; padding-top: 22px; }
+:root[data-xmas] main .card::before {
+  content: ""; position: absolute; left: -1px; right: -1px; top: -7px; height: 22px;
+  border-radius: 16px 16px 0 0; pointer-events: none;
+  background:
+    radial-gradient(circle at 14px 0, var(--snowcap) 8px, transparent 8.6px) 0 9px / 52px 14px repeat-x,
+    radial-gradient(circle at 38px 0, var(--snowcap) 5px, transparent 5.6px) 0 9px / 52px 14px repeat-x,
+    linear-gradient(var(--snowcap), var(--snowcap)) 0 0 / 100% 10px no-repeat;
+  filter: drop-shadow(0 1px 0 var(--snowcap-shade));
+}
+:root[data-xmas] main .card h2 { color: var(--accent); font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 1.15rem; }
+:root[data-xmas] .range i { background: linear-gradient(90deg, var(--xmas-green), var(--gold), var(--xmas-red)); }
+
+/* Přání v patičce */
+:root[data-xmas] .foot::before {
+  content: "🎄 Veselé Vánoce a šťastný nový rok! 🎁";
+  display: block; text-align: center; margin: 18px 0 14px;
+  font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 1.1rem; color: var(--accent);
+}
+
+/* Sníh (vločky vytváří app.js jen při zapnutém vánočním vzhledu) */
+/* Sníh je nad hlavičkou a pozadím, ale pod kartami – nepřekrývá údaje. */
+.snow { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+:root[data-xmas] main { position: relative; z-index: 2; }
+.flake {
+  position: absolute; top: -14px; color: var(--flake, #fff); opacity: .85; user-select: none;
+  text-shadow: 0 0 4px rgba(120, 150, 190, .5);
+  animation: fall linear infinite;
+}
+@keyframes fall {
+  0%   { transform: translate3d(0, -14px, 0) rotate(0deg); }
+  50%  { transform: translate3d(var(--sway, 20px), 50vh, 0) rotate(180deg); }
+  100% { transform: translate3d(0, 105vh, 0) rotate(360deg); }
+}
+/* Při omezených animacích sníh jen leží (rozmístěný staticky), nic nebliká ani nepadá. */
+@media (prefers-reduced-motion: reduce) {
+  .flake { animation: none; opacity: .5; }
+  .bulb { animation: none; box-shadow: 0 0 8px 2px var(--c); }
+}
+@media (max-width: 420px) {
+  :root[data-xmas] .top h1 { font-size: 1.12rem; white-space: nowrap; }
+}

@@ -33,7 +33,8 @@ Statická webová aplikace s předpovědí počasí pro jednu obec.
 ## UI
 - Mobile-first, musí fungovat od šířky 320 px bez vodorovného posouvání stránky (posouvá se jen graf).
 - Světlý/tmavý vzhled: výchozí podle systému, přepínač v hlavičce nastavuje `data-theme` na `<html>`. Barvy jen přes CSS proměnné v `:root`.
-- Volby se ukládají do `localStorage` (`pocasi-theme`, `pocasi-model`), vždy v `try/catch` – aplikace musí fungovat i bez něj.
+- Vánoční vzhled: samostatný přepínač 🎄, nastavuje atribut `data-xmas` na `<html>` a kombinuje se se světlým i tmavým (vlastní CSS proměnné pro obě varianty). Hlavička je prapor (červený / v tmavém zelený), pod ní girlanda žárovek (sestavuje `buildGarland()` v `app.js`, přepočítá se při změně šířky), karty mají sněhové čepice, v patičce je přání. Sníh (`#snow`) je pod kartami (`z-index`), aby nepřekrýval údaje; při `prefers-reduced-motion` vločky jen staticky leží a žárovky neblikají.
+- Volby se ukládají do `localStorage` (`pocasi-theme`, `pocasi-model`, `pocasi-xmas`), vždy v `try/catch` – aplikace musí fungovat i bez něj. Téma i vánoční vzhled nastavuje už inline skript v `<head>`, aby stránka neproblikla.
 - Data se obnovují automaticky každých 15 minut a po návratu na stránku, pokud jsou starší.
 
 ## Spuštění lokálně

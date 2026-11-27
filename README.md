@@ -42,6 +42,7 @@ celá stránka pak ukazuje jen jeho data a dny mimo jeho dosah jsou označené �
 Přepnutí modelu nestahuje předpověď znovu, jen aktuální stav.
 
 Tlačítkem 🌙 / ☀️ v hlavičce se přepíná světlý a tmavý vzhled (výchozí je podle systému).
+Tlačítkem 🎄 se zapíná vánoční vzhled (barvy, girlanda, padající sníh) – funguje ve světlém i tmavém režimu.
 Zvolený model i vzhled si prohlížeč pamatuje (localStorage).
 
 Časy jsou v Europe/Prague, jednotky °C, km/h, mm.

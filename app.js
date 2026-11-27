@@ -27,6 +27,8 @@
   // Výchozí téma podle systému, po přepnutí se pamatuje volba uživatele.
   var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   var theme = readPref('pocasi-theme', ['light', 'dark'], systemDark ? 'dark' : 'light');
+  // Vánoční vzhled je nezávislý přepínač, kombinuje se se světlým i tmavým.
+  var xmas = readPref('pocasi-xmas', ['on', 'off'], 'off') === 'on';
   var rawForecast = null;  // poslední surová data předpovědi (pro přepnutí modelu bez dotazu)
   var currentReq = 0;      // pořadí dotazů na aktuální stav, aby starší odpověď nepřepsala novější
 
@@ -292,11 +294,12 @@
 
   /* ---------- Přepínače ---------- */
   var THEME_COLORS = { light: '#f4f6f9', dark: '#11151c' };
+  var XMAS_COLORS = { light: '#9e2019', dark: '#135033' }; // barva praporu v hlavičce
   function applyTheme() {
     document.documentElement.setAttribute('data-theme', theme);
     // Barva lišty prohlížeče na mobilu odpovídá zvolenému tématu.
     document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
-      m.setAttribute('content', THEME_COLORS[theme]);
+      m.setAttribute('content', (xmas ? XMAS_COLORS : THEME_COLORS)[theme]);
     });
     var btn = $('theme-toggle');
     var label = theme === 'dark' ? 'Přepnout na světlý vzhled' : 'Přepnout na tmavý vzhled';
@@ -312,6 +315,89 @@
     theme = theme === 'dark' ? 'light' : 'dark';
     writePref('pocasi-theme', theme);
     applyTheme();
+  });
+
+  /* ---------- Vánoční vzhled ---------- */
+  var FLAKES = 40;
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function makeSnow() {
+    var box = $('snow');
+    box.innerHTML = '';
+    if (!xmas) return;
+    var chars = ['❄', '❅', '❆', '•'];
+    var count = reduceMotion ? 18 : FLAKES;
+    for (var i = 0; i < count; i++) {
+      var f = document.createElement('span');
+      f.className = 'flake';
+      f.textContent = chars[i % chars.length];
+      f.style.left = (Math.random() * 100).toFixed(1) + '%';
+      f.style.fontSize = (8 + Math.random() * 12).toFixed(0) + 'px';
+      if (reduceMotion) {
+        // Bez animace vločky jen staticky „visí“ rozmístěné po obrazovce.
+        f.style.top = (Math.random() * 100).toFixed(1) + '%';
+      } else {
+        f.style.animationDuration = (9 + Math.random() * 12).toFixed(1) + 's';
+        // Záporné zpoždění = vločky jsou rozprostřené po obrazovce hned od začátku.
+        f.style.animationDelay = (-Math.random() * 20).toFixed(1) + 's';
+        f.style.setProperty('--sway', ((Math.random() - 0.5) * 80).toFixed(0) + 'px');
+      }
+      box.appendChild(f);
+    }
+  }
+
+  // Girlanda: drát prohnutý mezi háčky po 120 px, žárovky po 30 px visí na drátu.
+  var BULB_COLORS = ['var(--xmas-red)', 'var(--gold)', 'var(--xmas-green)', 'var(--xmas-blue)'];
+  var HOOK = 120, TOP = 6, SAG = 16;
+  function wireY(x) {
+    var t = (x % HOOK) / HOOK;
+    return TOP + 4 * SAG * t * (1 - t); // parabola mezi dvěma háčky
+  }
+  function buildGarland() {
+    var g = $('garland');
+    g.innerHTML = '';
+    if (!xmas) return;
+    var w = g.clientWidth || document.documentElement.clientWidth;
+    var segs = Math.ceil(w / HOOK);
+    var d = 'M0,' + TOP;
+    for (var s = 0; s < segs; s++) {
+      d += ' Q' + (s * HOOK + HOOK / 2) + ',' + (TOP + 2 * SAG) + ' ' + ((s + 1) * HOOK) + ',' + TOP;
+    }
+    g.innerHTML = '<svg aria-hidden="true"><path class="wire" d="' + d + '"/></svg>';
+    for (var i = 0, x = 15; x < w; i++, x += 30) {
+      var b = document.createElement('span');
+      b.className = 'bulb';
+      b.style.left = x + 'px';
+      b.style.top = (wireY(x) + 3).toFixed(1) + 'px';
+      b.style.setProperty('--c', BULB_COLORS[i % BULB_COLORS.length]);
+      b.style.setProperty('--d', ((i % 5) * 0.37).toFixed(2) + 's');
+      b.style.setProperty('--r', (i % 2 ? -7 : 7) + 'deg');
+      g.appendChild(b);
+    }
+  }
+  var garlandTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(garlandTimer);
+    garlandTimer = setTimeout(buildGarland, 150);
+  });
+
+  function applyXmas() {
+    var root = document.documentElement;
+    if (xmas) root.setAttribute('data-xmas', ''); else root.removeAttribute('data-xmas');
+    var btn = $('xmas-toggle');
+    btn.setAttribute('aria-pressed', xmas ? 'true' : 'false');
+    btn.title = xmas ? 'Vypnout vánoční vzhled' : 'Zapnout vánoční vzhled';
+    makeSnow();
+    buildGarland();
+    applyTheme(); // kvůli barvě lišty prohlížeče
+  }
+
+  applyXmas();
+
+  $('xmas-toggle').addEventListener('click', function () {
+    xmas = !xmas;
+    writePref('pocasi-xmas', xmas ? 'on' : 'off');
+    applyXmas();
   });
 
   $('model-select').addEventListener('change', function (e) {
